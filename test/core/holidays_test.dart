@@ -171,7 +171,15 @@ void main() {
         lunar: lunar,
       );
       expect(list.first.holiday.start.year, 2027);
-      expect(list.first.daysUntilStart, greaterThan(0));
+      // 估算里元旦按 3 天连休算，所以 1 月 2 日正处在假期中
+      expect(list.first.holiday.name, '元旦');
+      expect(list.first.isOngoing, isTrue);
+      expect(list.first.countdownLabel, '假期第 2 天');
+      // 下一个还没开始的假期也排得出来
+      final HolidayCountdown next = list.firstWhere(
+        (HolidayCountdown c) => !c.isOngoing,
+      );
+      expect(next.daysUntilStart, greaterThan(0));
     });
   });
 }

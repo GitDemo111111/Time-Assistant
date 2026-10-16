@@ -217,6 +217,8 @@ List<Holiday> holidaysForYear(
   if (official.isNotEmpty) return official;
 
   // ---- 未公布年份的估算 ----
+  // 天数按近年常见安排给（元旦 3、春节 8、清明 3、劳动 5、端午 3、中秋 3、国庆 7），
+  // 只是让人对「大概连休几天」有感觉；实际以国务院通知为准（卡片上会写明）。
   final DateTime spring = springFestivalOf(year, lunar);
   final DateTime qingming = qingmingOf(year);
   final List<Holiday> estimate = <Holiday>[];
@@ -235,13 +237,13 @@ List<Holiday> holidaysForYear(
     );
   }
 
-  add('new_year', '元旦', '🎊', DateTime(year, 1, 1), 1);
-  add('spring_festival', '春节', '🧧', spring, 3);
-  add('qingming', '清明节', '🌿', qingming, 1);
-  add('labour_day', '劳动节', '🛠️', DateTime(year, 5, 1), 1);
-  add('dragon_boat', '端午节', '🐲', _lunarDate(year, 5, 5, lunar), 1);
-  add('mid_autumn', '中秋节', '🥮', _lunarDate(year, 8, 15, lunar), 1);
-  add('national_day', '国庆节', '🇨🇳', DateTime(year, 10, 1), 3);
+  add('new_year', '元旦', '🎊', DateTime(year, 1, 1), 3);
+  add('spring_festival', '春节', '🧧', spring, 8);
+  add('qingming', '清明节', '🌿', qingming, 3);
+  add('labour_day', '劳动节', '🛠️', DateTime(year, 5, 1), 5);
+  add('dragon_boat', '端午节', '🐲', _lunarDate(year, 5, 5, lunar), 3);
+  add('mid_autumn', '中秋节', '🥮', _lunarDate(year, 8, 15, lunar), 3);
+  add('national_day', '国庆节', '🇨🇳', DateTime(year, 10, 1), 7);
   return estimate;
 }
 
