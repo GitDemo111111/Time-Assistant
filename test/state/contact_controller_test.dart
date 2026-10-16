@@ -206,7 +206,13 @@ void main() {
       await harness.contactController.clearAll();
 
       expect(harness.contactController.contacts, isEmpty);
-      expect(harness.scheduler.applied, isEmpty);
+      // 只关心联系人提醒：节日 / 假期提醒与「清空联系人」无关
+      expect(
+        harness.scheduler.applied.where(
+          (PendingReminder r) => r.isContactReminder,
+        ),
+        isEmpty,
+      );
     });
 
     test('每次修改都会通知监听者', () async {
@@ -235,14 +241,20 @@ void main() {
       );
 
       expect(harness.scheduler.applyCount, greaterThan(0));
-      expect(harness.scheduler.applied, hasLength(4));
+      final List<PendingReminder> contactReminders = harness.scheduler.applied
+          .where((PendingReminder r) => r.isContactReminder)
+          .toList();
+      expect(contactReminders, hasLength(4));
       expect(
-        harness.scheduler.applied.every(
-          (PendingReminder r) => r.contactId == 'a',
-        ),
+        contactReminders.every((PendingReminder r) => r.contactId == 'a'),
         isTrue,
       );
-      expect(harness.contactController.scheduledReminders, hasLength(4));
+      expect(
+        harness.contactController.scheduledReminders.where(
+          (PendingReminder r) => r.isContactReminder,
+        ),
+        hasLength(4),
+      );
     });
 
     test('关闭通知总开关后取消所有提醒', () async {
@@ -308,7 +320,12 @@ void main() {
 
       await controller.load();
 
-      expect(controller.scheduledReminders, hasLength(4));
+      expect(
+        controller.scheduledReminders.where(
+          (PendingReminder r) => r.isContactReminder,
+        ),
+        hasLength(4),
+      );
       expect(controller.contacts, hasLength(1));
     });
   });

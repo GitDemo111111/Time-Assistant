@@ -61,6 +61,14 @@ class SettingsController extends ChangeNotifier {
   Future<void> restoreHiddenTips() =>
       update(_settings.copyWith(hiddenTipIds: const <String>[]));
 
+  /// 节日提醒开关。
+  Future<void> setFestivalReminders(bool value) =>
+      update(_settings.copyWith(festivalReminders: value));
+
+  /// 假期提醒开关。
+  Future<void> setHolidayReminders(bool value) =>
+      update(_settings.copyWith(holidayReminders: value));
+
   /// 文本导入的默认历法。
   Future<void> setImportCalendar(BirthdayCalendar value) =>
       update(_settings.copyWith(importCalendar: value));

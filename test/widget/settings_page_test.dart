@@ -35,7 +35,11 @@ void main() {
     expect(find.text('开启生日提醒'), findsOneWidget);
     expect(find.text('共 2 位联系人，1 位有生日'), findsOneWidget);
     // 两位联系人里只有一位有生日 -> 2 次生日 × 2 种提醒
-    expect(find.text('已为 4 次生日排好提醒'), findsOneWidget);
+    expect(find.textContaining('已为 4 次生日排好提醒'), findsOneWidget);
+    // 节日 / 假期提醒默认开启，会单独标注条数
+    expect(find.textContaining('节日'), findsWidgets);
+    expect(find.byKey(const Key('festivalReminderSwitch')), findsOneWidget);
+    expect(find.byKey(const Key('holidayReminderSwitch')), findsOneWidget);
   });
 
   widgetTest('关闭总开关会更新设置并取消提醒', (WidgetTester tester) async {

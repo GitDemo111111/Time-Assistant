@@ -33,6 +33,8 @@ class AppSettings {
     this.showTipCard = true,
     this.hiddenTipIds = const <String>[],
     this.importCalendar = BirthdayCalendar.lunar,
+    this.festivalReminders = true,
+    this.holidayReminders = true,
   });
 
   /// 总开关：关闭后不再调度任何通知。
@@ -60,6 +62,12 @@ class AppSettings {
   /// 文本里写了「新历」的行不受影响；预览里还可以逐条切换。
   final BirthdayCalendar importCalendar;
 
+  /// 节日当天是否提醒（春节、中秋、端午…）。
+  final bool festivalReminders;
+
+  /// 假期开始 / 结束、调休上班是否提醒。
+  final bool holidayReminders;
+
   bool isTipHidden(String id) => hiddenTipIds.contains(id);
 
   AppSettings copyWith({
@@ -71,6 +79,8 @@ class AppSettings {
     bool? showTipCard,
     List<String>? hiddenTipIds,
     BirthdayCalendar? importCalendar,
+    bool? festivalReminders,
+    bool? holidayReminders,
   }) => AppSettings(
     notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     defaultReminder: defaultReminder ?? this.defaultReminder,
@@ -80,6 +90,8 @@ class AppSettings {
     showTipCard: showTipCard ?? this.showTipCard,
     hiddenTipIds: hiddenTipIds ?? this.hiddenTipIds,
     importCalendar: importCalendar ?? this.importCalendar,
+    festivalReminders: festivalReminders ?? this.festivalReminders,
+    holidayReminders: holidayReminders ?? this.holidayReminders,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -91,6 +103,8 @@ class AppSettings {
     'showTipCard': showTipCard,
     'hiddenTipIds': hiddenTipIds,
     'importCalendar': importCalendar.name,
+    'festivalReminders': festivalReminders,
+    'holidayReminders': holidayReminders,
   };
 
   factory AppSettings.fromJson(Map<String, Object?> json) {
@@ -103,6 +117,8 @@ class AppSettings {
     final Object? showTipCard = json['showTipCard'];
     final Object? hiddenTipIds = json['hiddenTipIds'];
     final Object? importCalendar = json['importCalendar'];
+    final Object? festivalReminders = json['festivalReminders'];
+    final Object? holidayReminders = json['holidayReminders'];
     return AppSettings(
       notificationsEnabled: notificationsEnabled is bool
           ? notificationsEnabled
@@ -126,6 +142,12 @@ class AppSettings {
       importCalendar: importCalendar is String
           ? BirthdayCalendar.fromName(importCalendar)
           : fallback.importCalendar,
+      festivalReminders: festivalReminders is bool
+          ? festivalReminders
+          : fallback.festivalReminders,
+      holidayReminders: holidayReminders is bool
+          ? holidayReminders
+          : fallback.holidayReminders,
     );
   }
 
@@ -140,7 +162,9 @@ class AppSettings {
           other.groupUpcoming == groupUpcoming &&
           other.showTipCard == showTipCard &&
           _sameList(other.hiddenTipIds, hiddenTipIds) &&
-          other.importCalendar == importCalendar;
+          other.importCalendar == importCalendar &&
+          other.festivalReminders == festivalReminders &&
+          other.holidayReminders == holidayReminders;
 
   static bool _sameList(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
@@ -160,5 +184,7 @@ class AppSettings {
     showTipCard,
     Object.hashAll(hiddenTipIds),
     importCalendar,
+    festivalReminders,
+    holidayReminders,
   );
 }

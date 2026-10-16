@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/app_settings.dart';
 import '../../services/backup_service.dart';
+import '../../core/reminder_planner.dart';
 import '../../state/contact_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../theme/app_theme.dart';
@@ -14,7 +15,7 @@ import '../widgets/forms.dart';
 import 'tips_page.dart';
 
 /// 应用的版本号（与 pubspec.yaml 保持一致）。
-const String kAppVersion = '1.2.5';
+const String kAppVersion = '1.3.0';
 
 /// 设置页。
 class SettingsPage extends StatelessWidget {
@@ -51,6 +52,41 @@ class SettingsPage extends StatelessWidget {
                   ),
                   subtitle: const Text(
                     '关闭后不再发送任何通知',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                const Divider(height: 20),
+                SwitchListTile.adaptive(
+                  key: const Key('festivalReminderSwitch'),
+                  contentPadding: EdgeInsets.zero,
+                  value: settings.festivalReminders,
+                  onChanged: settingsController.setFestivalReminders,
+                  title: const Text(
+                    '节日提醒',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    '春节、中秋、端午等节日当天提醒一次',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  key: const Key('holidayReminderSwitch'),
+                  contentPadding: EdgeInsets.zero,
+                  value: settings.holidayReminders,
+                  onChanged: settingsController.setHolidayReminders,
+                  title: const Text(
+                    '假期提醒',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    '放假前一天、假期最后一天、调休上班日都会提醒',
                     style: TextStyle(fontSize: 12.5),
                   ),
                 ),
@@ -125,7 +161,7 @@ class SettingsPage extends StatelessWidget {
                     Expanded(
                       child: Text(
                         settings.notificationsEnabled
-                            ? '已为 ${controller.scheduledReminders.length} 次生日排好提醒'
+                            ? _reminderSummary(controller)
                             : '提醒已关闭',
                         style: const TextStyle(
                           fontSize: 13,
@@ -704,4 +740,16 @@ class _SliderRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 提醒统计文案：分开说「生日提醒」和「节日 / 假期提醒」，
+/// 免得把两种通知混在一起数。
+String _reminderSummary(ContactController controller) {
+  final List<PendingReminder> all = controller.scheduledReminders;
+  final int birthdays = all
+      .where((PendingReminder r) => r.isContactReminder)
+      .length;
+  final int others = all.length - birthdays;
+  if (others <= 0) return '已为 $birthdays 次生日排好提醒';
+  return '已为 $birthdays 次生日排好提醒，另有 $others 条节日 / 假期提醒';
 }

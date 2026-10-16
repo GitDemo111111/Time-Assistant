@@ -561,6 +561,10 @@ class ContactController extends ChangeNotifier {
     final List<PendingReminder> reminders = _planner.plan(
       contacts: _contacts,
       now: _clock(),
+      festivalReminders: _settings.settings.festivalReminders,
+      holidayReminders: _settings.settings.holidayReminders,
+      reminderHour: _settings.settings.defaultReminder.hour,
+      reminderMinute: _settings.settings.defaultReminder.minute,
     );
     if (scheduler != null) {
       try {

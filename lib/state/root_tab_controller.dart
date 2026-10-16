@@ -6,8 +6,9 @@ import 'package:flutter/foundation.dart';
 /// 自动回到「联系人」页。
 class RootTabController extends ChangeNotifier {
   static const int upcomingTab = 0;
-  static const int contactsTab = 1;
-  static const int settingsTab = 2;
+  static const int calendarTab = 1;
+  static const int contactsTab = 2;
+  static const int settingsTab = 3;
 
   int _index = upcomingTab;
 

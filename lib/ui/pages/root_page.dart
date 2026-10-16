@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/root_tab_controller.dart';
+import 'calendar_page.dart';
 import 'contacts_page.dart';
 import 'settings_page.dart';
 import 'upcoming_page.dart';
@@ -23,6 +24,7 @@ class _RootPageState extends State<RootPage> {
         index: tabs.index,
         children: const <Widget>[
           UpcomingPage(),
+          CalendarPage(),
           ContactsPage(),
           SettingsPage(),
         ],
@@ -35,6 +37,11 @@ class _RootPageState extends State<RootPage> {
             icon: Icon(Icons.cake_outlined),
             selectedIcon: Icon(Icons.cake_rounded),
             label: '即将到来',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month_rounded),
+            label: '日历',
           ),
           NavigationDestination(
             icon: Icon(Icons.people_outline_rounded),

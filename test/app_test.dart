@@ -1,4 +1,6 @@
 import 'package:birthday_keeper/app.dart';
+import 'package:birthday_keeper/core/reminder_planner.dart';
+import 'package:birthday_keeper/state/root_tab_controller.dart';
 import 'package:birthday_keeper/ui/pages/contact_edit_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,8 +37,15 @@ void main() {
     expect(find.text('生日管家'), findsOneWidget);
     expect(find.text('还没有联系人'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
-    // 三个标签都在
+    // 四个标签都在
     expect(find.text('即将到来'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('日历'),
+      ),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: find.byType(NavigationBar),
@@ -63,10 +72,10 @@ void main() {
     expect(bar().selectedIndex, 0);
 
     await tapTab(tester, '联系人');
-    expect(bar().selectedIndex, 1);
+    expect(bar().selectedIndex, RootTabController.contactsTab);
 
     await tapTab(tester, '设置');
-    expect(bar().selectedIndex, 2);
+    expect(bar().selectedIndex, RootTabController.settingsTab);
 
     await tapTab(tester, '即将到来');
     expect(bar().selectedIndex, 0);
@@ -100,8 +109,21 @@ void main() {
     expect(find.text('张三'), findsOneWidget);
     expect(find.textContaining('天后'), findsWidgets);
 
-    // 5. 提醒已经排好（2 次生日 × 提前 + 当天）
-    expect(harness.scheduler.applied, hasLength(4));
+    // 5. 提醒已经排好（2 次生日 × 提前 + 当天）。
+    //    节日 / 假期提醒也会一起排，所以这里只看生日相关的。
+    expect(
+      harness.scheduler.applied.where(
+        (PendingReminder r) => r.isContactReminder,
+      ),
+      hasLength(4),
+    );
+    expect(
+      harness.scheduler.applied.any(
+        (PendingReminder r) => r.kind == ReminderKind.festival,
+      ),
+      isTrue,
+      reason: '节日提醒默认开启',
+    );
 
     // 6. 进入详情再进编辑，改名字后首页同步更新
     await tester.tap(find.text('张三'));
