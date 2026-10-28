@@ -115,12 +115,20 @@ void main() {
     widgetTest('节日名 / 休 / 班 都显示出来', (WidgetTester tester) async {
       final TestHarness harness = TestHarness();
       await harness.load();
-      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      await tester.pumpWidget(
+        harness.wrap(const CalendarPage(autoRotate: false)),
+      );
       await tester.pumpAndSettle();
 
       // kNow = 2026-05-20，所以显示 2026 年 5 月
-      String? label(String iso) =>
-          tester.widget<Text>(find.byKey(Key('dayLabel-$iso'))).data;
+      String? label(String iso) => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(Key('dayLabel-$iso')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data;
 
       // 5/1 劳动节（也是假期第一天 -> 显示节日名，不是「休」）
       expect(label('2026-05-01'), '劳动节');
@@ -137,26 +145,128 @@ void main() {
     widgetTest('翻到下个月也能看到端午节的节日名', (WidgetTester tester) async {
       final TestHarness harness = TestHarness();
       await harness.load();
-      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      await tester.pumpWidget(
+        harness.wrap(const CalendarPage(autoRotate: false)),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('nextMonthButton')));
       await tester.pumpAndSettle();
 
       expect(
-        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-19'))).data,
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: find.byKey(const Key('dayLabel-2026-06-19')),
+                matching: find.byType(Text),
+              ),
+            )
+            .data,
         '端午节',
       );
       // 端午假期三天：中间那天是「休」；
       // 6/21 同时是父亲节，节日名优先于「休」（点开那天的详情能看全）
       expect(
-        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-20'))).data,
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: find.byKey(const Key('dayLabel-2026-06-20')),
+                matching: find.byType(Text),
+              ),
+            )
+            .data,
         '休',
       );
       expect(
-        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-21'))).data,
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: find.byKey(const Key('dayLabel-2026-06-21')),
+                matching: find.byType(Text),
+              ),
+            )
+            .data,
         '父亲节',
       );
+    });
+  });
+
+  group('联系人生日也画到日历上', () {
+    Contact mayThirteen() => makeContact(
+      id: 'zhang',
+      name: '张三',
+      birthday: const Birthday(year: 1996, month: 5, day: 13),
+    );
+
+    widgetTest('生日那天显示联系人姓名，点开能看「张三 生日」', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness(
+        contacts: <Contact>[mayThirteen()],
+      );
+      await harness.load();
+      await tester.pumpWidget(
+        harness.wrap(const CalendarPage(autoRotate: false)),
+      );
+      await tester.pumpAndSettle();
+
+      // 5/13 没有节日也没有假期，格子上的小字就是这个人的名字
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: find.byKey(const Key('dayLabel-2026-05-13')),
+                matching: find.byType(Text),
+              ),
+            )
+            .data,
+        '张三',
+      );
+
+      // 点开那天，详情里能看到生日
+      await tester.tap(find.byKey(const Key('dayCell-2026-05-13')));
+      await tester.pumpAndSettle();
+      expect(find.text('张三 生日'), findsOneWidget);
+    });
+
+    widgetTest('节日和生日同一天时，每秒轮播（1 秒换一条）', (WidgetTester tester) async {
+      // 5/10 既是母亲节，也是张三的生日
+      final TestHarness harness = TestHarness(
+        contacts: <Contact>[
+          makeContact(
+            id: 'zhang',
+            name: '张三',
+            birthday: const Birthday(year: 1996, month: 5, day: 10),
+          ),
+        ],
+      );
+      await harness.load();
+      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      // 轮播是常驻 Timer，不能用 pumpAndSettle
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      String? label() => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const Key('dayLabel-2026-05-10')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data;
+
+      final String first = label()!;
+      expect(first, '母亲节');
+
+      // 1 秒后轮到生日
+      await tester.pump(const Duration(seconds: 1));
+      final String second = label()!;
+      expect(second, '张三');
+
+      // 再过 1 秒又转回节日
+      await tester.pump(const Duration(seconds: 1));
+      expect(label(), first);
+
+      // 收尾：把页面拆掉，避免 Timer 残留
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 }

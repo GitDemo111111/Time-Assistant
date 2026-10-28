@@ -13,7 +13,9 @@ void main() {
   Future<TestHarness> pumpCalendar(WidgetTester tester) async {
     final TestHarness harness = TestHarness();
     await harness.load();
-    await tester.pumpWidget(harness.wrap(const CalendarPage()));
+    await tester.pumpWidget(
+      harness.wrap(const CalendarPage(autoRotate: false)),
+    );
     await tester.pumpAndSettle();
     return harness;
   }

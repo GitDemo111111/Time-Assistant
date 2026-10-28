@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/birthday_calculator.dart';
 import '../../core/date_x.dart';
 import '../../core/festivals.dart';
 import '../../core/formatters.dart';
 import '../../core/holidays.dart';
 import '../../core/lunar_converter.dart';
+import '../../models/birthday.dart';
+import '../../models/contact.dart';
 import '../../state/contact_controller.dart';
 import '../../theme/app_theme.dart';
 import '../navigation.dart';
@@ -16,7 +21,12 @@ import '../widgets/common.dart';
 /// 「今天」一律取自 [ContactController.now]，页面里不直接调用 `DateTime.now`，
 /// 这样测试可以固定住时间。
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key});
+  const CalendarPage({super.key, this.autoRotate = true});
+
+  /// 同一天有多个内容（节日 / 假期 / 生日）时，是否每 1 秒轮播一次。
+  ///
+  /// 测试里传 false，才能用 `pumpAndSettle` 断言静态文案。
+  final bool autoRotate;
 
   @override
   State<CalendarPage> createState() => _CalendarPageState();
@@ -56,10 +66,37 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _select(DateTime day) => setState(() => _selectedDay = day);
 
-  _DayInfo _infoFor(DateTime day, LunarConverter lunar) => _DayInfo(
+  /// 当前展示月份里，每一天过生日的联系人姓名（农历生日要换算成公历）。
+  Map<int, List<String>> _birthdaysInMonth(
+    DateTime month,
+    ContactController controller,
+  ) {
+    final Map<int, List<String>> result = <int, List<String>>{};
+    for (final Contact contact in controller.contacts) {
+      final Birthday? birthday = contact.birthday;
+      if (birthday == null) continue;
+      // 农历生日每年落在不同的公历日，所以前后各看一年再筛当月。
+      for (int year = month.year - 1; year <= month.year + 1; year++) {
+        final BirthdayOccurrence? occurrence = controller.calculator
+            .occurrenceInYear(birthday, year);
+        if (occurrence == null) continue;
+        final DateTime date = occurrence.date;
+        if (date.year != month.year || date.month != month.month) continue;
+        result.putIfAbsent(date.day, () => <String>[]).add(contact.name);
+      }
+    }
+    return result;
+  }
+
+  _DayInfo _infoFor(
+    DateTime day,
+    LunarConverter lunar,
+    Map<int, List<String>> birthdays,
+  ) => _DayInfo(
     festivals: festivalsOnDate(day, lunar),
     holiday: holidayOn(day, lunar),
     makeUpWorkday: makeUpWorkdayOn(day, lunar),
+    birthdays: birthdays[day.day] ?? const <String>[],
   );
 
   @override
@@ -73,6 +110,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final DateTime visible = _visibleMonth ?? DateTime(today.year, today.month);
     final DateTime selected = _selectedDay ?? today;
     final LunarConverter lunar = controller.calculator.lunarConverter;
+    final Map<int, List<String>> birthdays = _birthdaysInMonth(
+      visible,
+      controller,
+    );
 
     final List<HolidayCountdown> holidays = upcomingHolidays(
       controller.now,
@@ -116,7 +157,9 @@ class _CalendarPageState extends State<CalendarPage> {
                       month: visible,
                       today: today,
                       selected: selected,
-                      infoFor: (DateTime day) => _infoFor(day, lunar),
+                      autoRotate: widget.autoRotate,
+                      infoFor: (DateTime day) =>
+                          _infoFor(day, lunar, birthdays),
                       onSelect: _select,
                     ),
                     const SizedBox(height: 10),
@@ -126,7 +169,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       key: const Key('selectedDayInfo'),
                       day: selected,
                       isToday: selected == today,
-                      info: _infoFor(selected, lunar),
+                      info: _infoFor(selected, lunar, birthdays),
                     ),
                   ],
                 ),
@@ -190,9 +233,14 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 }
 
-/// 某一天的节日 / 假期信息。
+/// 某一天的节日 / 假期 / 生日信息。
 class _DayInfo {
-  const _DayInfo({required this.festivals, this.holiday, this.makeUpWorkday});
+  const _DayInfo({
+    required this.festivals,
+    this.holiday,
+    this.makeUpWorkday,
+    this.birthdays = const <String>[],
+  });
 
   final List<Festival> festivals;
 
@@ -202,8 +250,14 @@ class _DayInfo {
   /// 当天是某个假期的调休上班日。
   final Holiday? makeUpWorkday;
 
+  /// 当天过生日的联系人姓名。
+  final List<String> birthdays;
+
   bool get isEmpty =>
-      festivals.isEmpty && holiday == null && makeUpWorkday == null;
+      festivals.isEmpty &&
+      holiday == null &&
+      makeUpWorkday == null &&
+      birthdays.isEmpty;
 }
 
 /// 月份标题 + 上/下个月 + 回到今天。
@@ -311,6 +365,7 @@ class _MonthGrid extends StatelessWidget {
     required this.month,
     required this.today,
     required this.selected,
+    required this.autoRotate,
     required this.infoFor,
     required this.onSelect,
   });
@@ -318,6 +373,7 @@ class _MonthGrid extends StatelessWidget {
   final DateTime month;
   final DateTime today;
   final DateTime selected;
+  final bool autoRotate;
   final _DayInfo Function(DateTime day) infoFor;
   final ValueChanged<DateTime> onSelect;
 
@@ -354,52 +410,50 @@ class _MonthGrid extends StatelessWidget {
       info: infoFor(day),
       isToday: day == today,
       isSelected: day == selected,
+      autoRotate: autoRotate,
       onTap: () => onSelect(day),
     );
   }
 }
 
-/// 单个日期格子：数字 + 节日 / 假期小圆点。
+/// 单个日期格子：数字 + 一行说明（节日名 / 休 / 班 / 联系人生日）。
+///
+/// 同一天有好几件事（比如国庆节 + 陈光华生日）时，这一行每 1 秒轮播一次。
 class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
     required this.info,
     required this.isToday,
     required this.isSelected,
+    required this.autoRotate,
     required this.onTap,
   });
 
-  static const double height = 64;
+  static const double height = 62;
 
   final DateTime day;
   final _DayInfo info;
   final bool isToday;
   final bool isSelected;
+  final bool autoRotate;
   final VoidCallback onTap;
 
-  /// 格子底下的小字：优先显示节日名，其次显示放假/调休标记。
-  ///
-  /// 用户要求「日历表上要把即将到来的节日和假期体现出来」——
-  /// 所以不再只用小圆点，而是直接写出节日名和「休 / 班」。
-  String? get _label {
-    if (info.festivals.isNotEmpty) return info.festivals.first.name;
+  /// 这一格要展示的内容，按优先级排序：节日 -> 假期 -> 调休 -> 生日。
+  List<_Marker> get _markers {
     final Holiday? holiday = info.holiday;
-    if (holiday != null) {
-      // 放假第一天直接标假期名（例如「春节」），其余几天标「休」。
-      final bool isFirst =
-          holiday.start.year == day.year &&
-          holiday.start.month == day.month &&
-          holiday.start.day == day.day;
-      return isFirst ? holiday.name : '休';
-    }
-    if (info.makeUpWorkday != null) return '班';
-    return null;
-  }
-
-  Color get _labelColor {
-    if (info.festivals.isNotEmpty) return AppColors.accent;
-    if (info.holiday != null) return AppColors.celebrate;
-    return AppColors.warning;
+    final bool holidayStartsToday =
+        holiday != null &&
+        holiday.start.year == day.year &&
+        holiday.start.month == day.month &&
+        holiday.start.day == day.day;
+    return <_Marker>[
+      for (final Festival festival in info.festivals)
+        _Marker(festival.name, AppColors.accent),
+      if (holiday != null)
+        _Marker(holidayStartsToday ? holiday.name : '休', AppColors.celebrate),
+      if (info.makeUpWorkday != null) const _Marker('班', AppColors.warning),
+      for (final String name in info.birthdays) _Marker(name, AppColors.brand),
+    ];
   }
 
   @override
@@ -408,56 +462,157 @@ class _DayCell extends StatelessWidget {
     final Color numberColor = isToday
         ? Colors.white
         : (weekend ? AppColors.brand : AppColors.textPrimary);
-    final String? label = _label;
+
+    // 放假的日子整格浅粉、调休上班浅橙，一眼就能看出假期区间。
+    final Color? tint = info.holiday != null
+        ? AppColors.celebrate.withValues(alpha: 0.07)
+        : (info.makeUpWorkday != null
+              ? AppColors.warning.withValues(alpha: 0.10)
+              : null);
 
     return SizedBox(
       height: height,
-      child: InkWell(
-        key: Key('dayCell-${formatIsoDate(day)}'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Container(
-              width: 30,
-              height: 30,
-              alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 1.5, vertical: 1.5),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: Key('dayCell-${formatIsoDate(day)}'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
               decoration: BoxDecoration(
-                color: isToday
-                    ? AppColors.brand
-                    : (isSelected ? AppColors.brandSoft : null),
-                shape: BoxShape.circle,
+                color: tint,
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
-                '${day.day}',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.1,
-                  fontWeight: isToday || isSelected
-                      ? FontWeight.w800
-                      : FontWeight.w500,
-                  color: numberColor,
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isToday
+                          ? AppColors.brand
+                          : (isSelected ? AppColors.brandSoft : null),
+                      shape: BoxShape.circle,
+                      border: isSelected && !isToday
+                          ? Border.all(color: AppColors.brand, width: 1.2)
+                          : null,
+                    ),
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.1,
+                        fontWeight: isToday || isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                        color: numberColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  _RotatingLabel(
+                    // 没有内容时不给 key：测试里 `findsNothing` 才说得通
+                    key: _markers.isEmpty
+                        ? null
+                        : Key('dayLabel-${formatIsoDate(day)}'),
+                    markers: _markers,
+                    autoRotate: autoRotate,
+                  ),
+                ],
               ),
             ),
-            if (label != null) ...<Widget>[
-              const SizedBox(height: 2),
-              Text(
-                label,
-                key: Key('dayLabel-${formatIsoDate(day)}'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 8.5,
-                  height: 1.05,
-                  fontWeight: FontWeight.w600,
-                  color: _labelColor,
-                ),
-              ),
-            ],
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 格子里的一行说明。
+class _Marker {
+  const _Marker(this.text, this.color);
+
+  final String text;
+  final Color color;
+}
+
+/// 一行说明；有多条内容时每 1 秒换一条。
+class _RotatingLabel extends StatefulWidget {
+  const _RotatingLabel({
+    super.key,
+    required this.markers,
+    required this.autoRotate,
+  });
+
+  final List<_Marker> markers;
+  final bool autoRotate;
+  static const Duration period = Duration(seconds: 1);
+
+  @override
+  State<_RotatingLabel> createState() => _RotatingLabelState();
+}
+
+class _RotatingLabelState extends State<_RotatingLabel> {
+  static const double _height = 12;
+
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _restartTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RotatingLabel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.markers.length != widget.markers.length ||
+        oldWidget.autoRotate != widget.autoRotate) {
+      _index = 0;
+      _restartTimer();
+    }
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    _timer = null;
+    if (!widget.autoRotate || widget.markers.length < 2) return;
+    _timer = Timer.periodic(_RotatingLabel.period, (_) {
+      if (!mounted) return;
+      setState(() => _index = (_index + 1) % widget.markers.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.markers.isEmpty) return const SizedBox(height: _height);
+    final _Marker marker = widget.markers[_index % widget.markers.length];
+    return SizedBox(
+      height: _height,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Text(
+          marker.text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 8.5,
+            height: 1.15,
+            fontWeight: FontWeight.w600,
+            color: marker.color,
+          ),
         ),
       ),
     );
@@ -474,9 +629,10 @@ class _Legend extends StatelessWidget {
       spacing: 14,
       runSpacing: 6,
       children: <Widget>[
-        _LegendItem(color: AppColors.accent, label: '节日名'),
+        _LegendItem(color: AppColors.accent, label: '节日'),
         _LegendItem(color: AppColors.celebrate, label: '休 · 放假'),
         _LegendItem(color: AppColors.warning, label: '班 · 调休'),
+        _LegendItem(color: AppColors.brand, label: '生日'),
       ],
     );
   }
@@ -596,6 +752,13 @@ class _SelectedDayInfo extends StatelessWidget {
                 title: '${info.makeUpWorkday!.name}调休上班',
                 detail: '这天要上班，记得定闹钟。',
                 color: AppColors.warning,
+              ),
+            for (final String name in info.birthdays)
+              _InfoLine(
+                emoji: '🎂',
+                title: '$name 生日',
+                detail: '别忘了送上祝福',
+                color: AppColors.brand,
               ),
           ],
         ],
