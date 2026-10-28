@@ -99,7 +99,7 @@ class UpcomingTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   _subtitle(),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
@@ -132,11 +132,16 @@ class UpcomingTile extends StatelessWidget {
   }
 
   String _subtitle() {
+    final Birthday? birthday = item.contact.birthday;
+    // 农历生日的「生日」和「今年落在新历哪天」是两个日期，必须都标清楚，
+    // 否则「11月3日 · 农历」会被读成「农历11月3日」（用户就是这么被绕晕的）。
+    final String when = birthday?.isLunar == true
+        ? '农历${birthday!.month}月${birthday.day}日 · 新历${formatMonthDay(item.date)}'
+        : '新历${formatMonthDay(item.date)}';
     final List<String> parts = <String>[
-      formatMonthDay(item.date),
+      when,
       if (item.contact.relationshipLabel != null)
         item.contact.relationshipLabel!,
-      if (item.contact.birthday?.isLunar == true) '农历',
       // 星座由生日自动算出来，不用用户填
       constellationOf(item.date.month, item.date.day),
     ];

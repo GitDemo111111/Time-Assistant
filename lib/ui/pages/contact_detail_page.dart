@@ -344,7 +344,11 @@ class _CountdownCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '${formatFullDate(item.date)} ${weekdayLabel(item.date)}',
+            // 农历生日时这一行是换算出来的**新历**日期，必须写明，
+            // 否则和下面的「农历9月25日」并列会让人分不清（用户就问了这个问题）。
+            birthday.isLunar
+                ? '新历${formatFullDate(item.date)} ${weekdayLabel(item.date)}'
+                : '${formatFullDate(item.date)} ${weekdayLabel(item.date)}',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.95),
               fontSize: 14.5,
