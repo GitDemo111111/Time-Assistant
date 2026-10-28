@@ -97,14 +97,28 @@ class UpcomingTile extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 3),
+                // 日期一行、星座（和关系）另起一行：
+                // 否则「农历9月25日 · 新历11月3日 · 天蝎座」会被折成「天蝎 / 座」。
                 Text(
-                  _subtitle(),
-                  maxLines: 2,
+                  _dateLine(),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if (_infoLine().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    _infoLine(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -131,18 +145,20 @@ class UpcomingTile extends StatelessWidget {
     );
   }
 
-  String _subtitle() {
+  /// 第一行：日期。农历生日把「生日」和「今年落在新历哪天」都说清楚。
+  String _dateLine() {
     final Birthday? birthday = item.contact.birthday;
-    // 农历生日的「生日」和「今年落在新历哪天」是两个日期，必须都标清楚，
-    // 否则「11月3日 · 农历」会被读成「农历11月3日」（用户就是这么被绕晕的）。
-    final String when = birthday?.isLunar == true
-        ? '农历${birthday!.month}月${birthday.day}日 · 新历${formatMonthDay(item.date)}'
-        : '新历${formatMonthDay(item.date)}';
+    if (birthday?.isLunar == true) {
+      return '农历${birthday!.month}月${birthday.day}日 · 新历${formatMonthDay(item.date)}';
+    }
+    return '新历${formatMonthDay(item.date)}';
+  }
+
+  /// 第二行：关系 + 星座（星座由生日自动算出来，不用用户填）。
+  String _infoLine() {
     final List<String> parts = <String>[
-      when,
       if (item.contact.relationshipLabel != null)
         item.contact.relationshipLabel!,
-      // 星座由生日自动算出来，不用用户填
       constellationOf(item.date.month, item.date.day),
     ];
     return parts.where((String e) => e.isNotEmpty).join(' · ');

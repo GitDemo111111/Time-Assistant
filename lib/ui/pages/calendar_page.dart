@@ -369,7 +369,7 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
-  static const double height = 56;
+  static const double height = 64;
 
   final DateTime day;
   final _DayInfo info;
@@ -377,12 +377,38 @@ class _DayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
+  /// 格子底下的小字：优先显示节日名，其次显示放假/调休标记。
+  ///
+  /// 用户要求「日历表上要把即将到来的节日和假期体现出来」——
+  /// 所以不再只用小圆点，而是直接写出节日名和「休 / 班」。
+  String? get _label {
+    if (info.festivals.isNotEmpty) return info.festivals.first.name;
+    final Holiday? holiday = info.holiday;
+    if (holiday != null) {
+      // 放假第一天直接标假期名（例如「春节」），其余几天标「休」。
+      final bool isFirst =
+          holiday.start.year == day.year &&
+          holiday.start.month == day.month &&
+          holiday.start.day == day.day;
+      return isFirst ? holiday.name : '休';
+    }
+    if (info.makeUpWorkday != null) return '班';
+    return null;
+  }
+
+  Color get _labelColor {
+    if (info.festivals.isNotEmpty) return AppColors.accent;
+    if (info.holiday != null) return AppColors.celebrate;
+    return AppColors.warning;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool weekend = day.weekday >= DateTime.saturday;
     final Color numberColor = isToday
         ? Colors.white
         : (weekend ? AppColors.brand : AppColors.textPrimary);
+    final String? label = _label;
 
     return SizedBox(
       height: height,
@@ -394,8 +420,8 @@ class _DayCell extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Container(
-              width: 32,
-              height: 32,
+              width: 30,
+              height: 30,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isToday
@@ -406,7 +432,7 @@ class _DayCell extends StatelessWidget {
               child: Text(
                 '${day.day}',
                 style: TextStyle(
-                  fontSize: 14.5,
+                  fontSize: 14,
                   height: 1.1,
                   fontWeight: isToday || isSelected
                       ? FontWeight.w800
@@ -415,38 +441,30 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 3),
-            SizedBox(height: 6, child: _dots()),
+            if (label != null) ...<Widget>[
+              const SizedBox(height: 2),
+              Text(
+                label,
+                key: Key('dayLabel-${formatIsoDate(day)}'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 8.5,
+                  height: 1.05,
+                  fontWeight: FontWeight.w600,
+                  color: _labelColor,
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
-
-  /// 节日 / 假期 / 调休各一个小圆点，最多三个。
-  Widget _dots() {
-    final List<Color> colors = <Color>[
-      if (info.holiday != null) AppColors.celebrate,
-      for (final Festival _ in info.festivals) AppColors.accent,
-      if (info.makeUpWorkday != null) AppColors.warning,
-    ];
-    if (colors.isEmpty) return const SizedBox.shrink();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        for (int i = 0; i < colors.length && i < 3; i++)
-          Container(
-            width: 5,
-            height: 5,
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle),
-          ),
-      ],
-    );
-  }
 }
 
-/// 小圆点图例。
+/// 格子标记的图例。
 class _Legend extends StatelessWidget {
   const _Legend();
 
@@ -456,9 +474,9 @@ class _Legend extends StatelessWidget {
       spacing: 14,
       runSpacing: 6,
       children: <Widget>[
-        _LegendItem(color: AppColors.celebrate, label: '放假'),
-        _LegendItem(color: AppColors.accent, label: '节日'),
-        _LegendItem(color: AppColors.warning, label: '调休上班'),
+        _LegendItem(color: AppColors.accent, label: '节日名'),
+        _LegendItem(color: AppColors.celebrate, label: '休 · 放假'),
+        _LegendItem(color: AppColors.warning, label: '班 · 调休'),
       ],
     );
   }

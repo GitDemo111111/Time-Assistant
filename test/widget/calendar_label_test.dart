@@ -1,7 +1,9 @@
 import 'package:birthday_keeper/models/birthday.dart';
 import 'package:birthday_keeper/models/contact.dart';
+import 'package:birthday_keeper/ui/pages/calendar_page.dart';
 import 'package:birthday_keeper/ui/pages/contact_detail_page.dart';
 import 'package:birthday_keeper/ui/pages/upcoming_page.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/test_harness.dart';
@@ -89,6 +91,72 @@ void main() {
 
       expect(find.text('2026年5月23日 周六'), findsOneWidget);
       expect(find.textContaining('新历2026年'), findsNothing);
+    });
+  });
+
+  group('首页卡片：星座单独一行', () {
+    widgetTest('日期一行、星座另起一行，不会把「天蝎座」折成两行', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness(
+        contacts: <Contact>[lunarContact()],
+      );
+      await harness.load();
+      await tester.pumpWidget(harness.wrap(const UpcomingPage()));
+      await tester.pumpAndSettle();
+
+      // 日期是单独一个 Text
+      expect(find.text('农历9月25日 · 新历11月3日'), findsOneWidget);
+      // 星座是另一个 Text（同一行里不再混着）
+      expect(find.text('天蝎座'), findsWidgets);
+      expect(find.text('农历9月25日 · 新历11月3日 · 天蝎座'), findsNothing);
+    });
+  });
+
+  group('日历格子：直接把节日和假期写在格子里', () {
+    widgetTest('节日名 / 休 / 班 都显示出来', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness();
+      await harness.load();
+      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      await tester.pumpAndSettle();
+
+      // kNow = 2026-05-20，所以显示 2026 年 5 月
+      String? label(String iso) =>
+          tester.widget<Text>(find.byKey(Key('dayLabel-$iso'))).data;
+
+      // 5/1 劳动节（也是假期第一天 -> 显示节日名，不是「休」）
+      expect(label('2026-05-01'), '劳动节');
+      // 5/2 仍在劳动节假期里 -> 休
+      expect(label('2026-05-02'), '休');
+      // 5/9 是劳动节的调休上班日 -> 班
+      expect(label('2026-05-09'), '班');
+      // 5/10 母亲节 -> 节日名
+      expect(label('2026-05-10'), '母亲节');
+      // 普通日子没有标签
+      expect(find.byKey(const Key('dayLabel-2026-05-13')), findsNothing);
+    });
+
+    widgetTest('翻到下个月也能看到端午节的节日名', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness();
+      await harness.load();
+      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('nextMonthButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-19'))).data,
+        '端午节',
+      );
+      // 端午假期三天：中间那天是「休」；
+      // 6/21 同时是父亲节，节日名优先于「休」（点开那天的详情能看全）
+      expect(
+        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-20'))).data,
+        '休',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('dayLabel-2026-06-21'))).data,
+        '父亲节',
+      );
     });
   });
 }
