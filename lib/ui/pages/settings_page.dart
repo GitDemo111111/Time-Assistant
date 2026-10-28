@@ -15,7 +15,7 @@ import '../widgets/forms.dart';
 import 'tips_page.dart';
 
 /// 应用的版本号（与 pubspec.yaml 保持一致）。
-const String kAppVersion = '1.3.0';
+const String kAppVersion = '1.3.1';
 
 /// 设置页。
 class SettingsPage extends StatelessWidget {
@@ -745,6 +745,13 @@ class _SliderRow extends StatelessWidget {
 /// 提醒统计文案：分开说「生日提醒」和「节日 / 假期提醒」，
 /// 免得把两种通知混在一起数。
 String _reminderSummary(ContactController controller) {
+  // 排程失败时**必须说出来**：之前这里只显示条数，
+  // 结果是「已为 44 次生日排好提醒」但系统里一个闹钟都没有。
+  if (!controller.notificationsAllowed) {
+    return '⚠️ 通知权限未开启：请到系统的「应用信息 → 通知」里允许，否则提醒不会弹出';
+  }
+  final String? error = controller.schedulingError;
+  if (error != null) return '⚠️ 提醒排程失败：$error';
   final List<PendingReminder> all = controller.scheduledReminders;
   final int birthdays = all
       .where((PendingReminder r) => r.isContactReminder)

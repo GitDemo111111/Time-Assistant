@@ -83,6 +83,7 @@ class ContactController extends ChangeNotifier {
 
   bool _notificationsAllowed = false;
   List<PendingReminder> _scheduledReminders = <PendingReminder>[];
+  String? _schedulingError;
 
   List<UpcomingBirthday>? _upcomingCache;
   List<Contact>? _visibleCache;
@@ -107,6 +108,11 @@ class ContactController extends ChangeNotifier {
   /// 最近一次实际排程的提醒，便于界面展示「已设置 N 条提醒」。
   List<PendingReminder> get scheduledReminders =>
       List<PendingReminder>.unmodifiable(_scheduledReminders);
+
+  /// 最近一次排程失败的原因（成功时为 `null`）。
+  ///
+  /// 界面要显示它 —— 否则用户会被「已为 N 次生日排好提醒」骗了。
+  String? get schedulingError => _schedulingError;
 
   AppSettings get settings => _settings.settings;
 
@@ -569,10 +575,14 @@ class ContactController extends ChangeNotifier {
     if (scheduler != null) {
       try {
         await scheduler.apply(reminders);
-      } catch (_) {
-        // 通知排程失败不能连累数据（导入 / 保存必须成功）
+        _schedulingError = scheduler.lastError;
+      } catch (error) {
+        // 通知排程失败不能连累数据（导入 / 保存必须成功），但必须记下来
+        _schedulingError = error.toString();
+        notifyListeners();
       }
-      _notificationsAllowed = true;
+      // 只有真的没出错才算「提醒已排好」
+      _notificationsAllowed = _schedulingError == null;
     }
     _scheduledReminders = reminders;
     notifyListeners();

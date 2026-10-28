@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通知栏小图标只在 Dart 里通过字符串 "ic_notification" 引用，
+  Android 的资源收缩看不到这层引用，会把 drawable 删掉，
+  导致 flutter_local_notifications 初始化报 invalid_icon
+  （整批提醒都排不上）。这里显式保留它。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification" />

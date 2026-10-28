@@ -188,7 +188,10 @@ void main() {
       ]).firstWhere((PendingReminder r) => r.kind == ReminderKind.advance);
       expect(advance.title, contains('李四'));
       expect(advance.title, contains('生日'));
-      expect(advance.body, contains('还有 87 天'));
+      // 提前提醒在「生日前 3 天」响，正文说的是那时的天数（3 天），
+      // 而不是排程当天算出来的 87 天。
+      expect(advance.body, contains('还有 3 天'));
+      expect(advance.body, isNot(contains('还有 87 天')));
       expect(advance.body, contains('满 30 岁'));
       expect(advance.payload, contact.id);
     });

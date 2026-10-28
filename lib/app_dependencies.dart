@@ -25,5 +25,10 @@ class AppDependencies {
     }
     await settingsController.load();
     await contactController.load();
+    // 提醒是这个 App 的核心功能：总开关开着、但还没拿到通知权限时主动请求一次。
+    // （Android 13+ 只会弹两次，被永久拒绝后这里会静默返回 false。）
+    if (settingsController.settings.notificationsEnabled) {
+      unawaited(contactController.requestNotificationPermission());
+    }
   }
 }

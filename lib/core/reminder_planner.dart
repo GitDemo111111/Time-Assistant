@@ -197,9 +197,10 @@ class ReminderPlanner {
           );
           // 提前提醒的时间点已经过去（例如刚添加联系人时生日只剩 1 天），
           // 就立刻提醒一次，而不是默默错过。
-          final DateTime scheduledAt = planned.isAfter(now)
-              ? planned
-              : now.add(immediateLead);
+          final bool isImmediate = !planned.isAfter(now);
+          final DateTime scheduledAt = isImmediate
+              ? now.add(immediateLead)
+              : planned;
           result.add(
             PendingReminder(
               id: notificationIdFor(contact.id, ReminderKind.advance, index),
@@ -209,7 +210,14 @@ class ReminderPlanner {
               scheduledAt: scheduledAt,
               occurrenceDate: occurrence.date,
               title: '🎂 ${contact.name}的生日快到了',
-              body: _advanceBody(contact.name, daysUntil, turningAge),
+              // 正文要按**通知响的那一刻**的天数说：提前 3 天的提醒会在 3 天后响，
+              // 用的是 daysBefore，而不是排程当天算出来的 daysUntil
+              //（否则用户到时会看到「还有 11 天」）。
+              body: _advanceBody(
+                contact.name,
+                isImmediate ? daysUntil : reminder.daysBefore,
+                turningAge,
+              ),
             ),
           );
         }

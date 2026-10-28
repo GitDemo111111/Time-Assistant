@@ -16,6 +16,17 @@ class LocalNotificationScheduler implements ReminderScheduler {
 
   bool _initialized = false;
 
+  String? _lastError;
+
+  @override
+  String? get lastError => _lastError;
+
+  /// 记下失败原因，并打到 logcat（release 版也打），方便真机排查。
+  void _fail(String where, Object error) {
+    _lastError = '$where：$error';
+    debugPrint('提醒排程失败 -> $_lastError');
+  }
+
   static const String channelId = 'birthday_reminders';
   static const String channelName = '生日提醒';
 
@@ -70,7 +81,7 @@ class LocalNotificationScheduler implements ReminderScheduler {
     await _configureLocalTimeZone();
 
     const AndroidInitializationSettings android = AndroidInitializationSettings(
-      '@drawable/ic_notification',
+      'ic_notification',
     );
     const DarwinInitializationSettings darwin = DarwinInitializationSettings(
       // 权限在用户真正开启提醒时再请求，避免一进 App 就弹窗。
@@ -138,15 +149,22 @@ class LocalNotificationScheduler implements ReminderScheduler {
 
   @override
   Future<void> apply(List<PendingReminder> reminders) async {
-    await initialize();
-    // 通知排程**绝不能影响数据保存**：这里所有调用都吃掉异常。
-    // 之前没有 try/catch，某些机型（如 MIUI）某一条排程失败就会把
-    // 「批量导入」整个中断，最后只存进去前两条。
+    _lastError = null;
+    try {
+      await initialize();
+    } catch (error) {
+      _fail('通知初始化', error);
+      return;
+    }
+    // 通知排程**绝不能影响数据保存**：这里所有调用都吃掉异常，
+    // 但要把原因记下来（否则界面上会显示「已排好 N 条」其实一条都没排）。
     try {
       await _plugin.cancelAll();
-    } catch (_) {
-      // 忽略：取消失败不影响后面的重新排程
+    } catch (error) {
+      _fail('取消旧提醒', error);
     }
+    int failed = 0;
+    Object? firstError;
     for (final PendingReminder reminder in reminders) {
       try {
         await _plugin.zonedSchedule(
@@ -158,19 +176,24 @@ class LocalNotificationScheduler implements ReminderScheduler {
           androidScheduleMode: scheduleMode,
           payload: reminder.payload,
         );
-      } catch (_) {
+      } catch (error) {
         // 单条失败就跳过，别让整批中断
+        failed++;
+        firstError ??= error;
       }
+    }
+    if (failed > 0) {
+      _fail('排程 $failed/${reminders.length} 条', firstError!);
     }
   }
 
   @override
   Future<void> cancelAll() async {
-    await initialize();
     try {
+      await initialize();
       await _plugin.cancelAll();
-    } catch (_) {
-      // 忽略
+    } catch (error) {
+      _fail('取消提醒', error);
     }
   }
 

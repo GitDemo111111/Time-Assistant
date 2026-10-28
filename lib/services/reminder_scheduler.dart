@@ -19,6 +19,12 @@ abstract class ReminderScheduler {
 
   /// 当前系统里已排程的通知 id。
   Future<List<int>> pendingIds();
+
+  /// 最近一次排程失败的原因；成功时为 `null`。
+  ///
+  /// 实现里**不要**把异常抛给调用方（数据保存优先），
+  /// 但一定要把失败原因记在这里 —— 否则界面会「谎报已排好提醒」。
+  String? get lastError => null;
 }
 
 /// 不做任何真实调度，只在内存里记录。
@@ -42,6 +48,12 @@ class NoopReminderScheduler implements ReminderScheduler {
   int applyCount = 0;
   int cancelCount = 0;
 
+  /// 最近一次失败原因（[failOnApply] 或 [failOnApplyWith] 时会有值）。
+  String? _lastError;
+
+  @override
+  String? get lastError => _lastError;
+
   @override
   Future<void> initialize() async {}
 
@@ -52,8 +64,10 @@ class NoopReminderScheduler implements ReminderScheduler {
   Future<void> apply(List<PendingReminder> reminders) async {
     applyCount++;
     if (failOnApply) {
-      throw StateError('排程失败（测试用）');
+      _lastError = '排程失败（测试用）';
+      throw StateError(_lastError!);
     }
+    _lastError = null;
     applied = List<PendingReminder>.of(reminders);
   }
 
