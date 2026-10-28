@@ -269,4 +269,69 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   });
+
+  group('同一件事不重复写（用户反馈「国庆节为什么独自轮播」）', () {
+    widgetTest('10/1 只显示「国庆节」，不和时间无关地来回切', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness();
+      await harness.load();
+      await tester.pumpWidget(harness.wrap(const CalendarPage()));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // kNow = 2026-05-20，翻 5 次到 10 月
+      for (int i = 0; i < 5; i++) {
+        await tester.tap(find.byKey(const Key('nextMonthButton')));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      String? label() => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const Key('dayLabel-2026-10-01')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data;
+
+      expect(label(), '国庆节');
+      // 只有一条内容 -> 不会轮播
+      await tester.pump(const Duration(seconds: 1));
+      expect(label(), '国庆节');
+      await tester.pump(const Duration(seconds: 1));
+      expect(label(), '国庆节');
+
+      // 10/2 是假期第二天，没有节日 -> 只写「休」
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: find.byKey(const Key('dayLabel-2026-10-02')),
+                matching: find.byType(Text),
+              ),
+            )
+            .data,
+        '休',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  group('格子形状（用户要求趋近正方形）', () {
+    widgetTest('日期格子接近正方形，不再是细长的长方形', (WidgetTester tester) async {
+      final TestHarness harness = TestHarness();
+      await harness.load();
+      await tester.pumpWidget(
+        harness.wrap(const CalendarPage(autoRotate: false)),
+      );
+      await tester.pumpAndSettle();
+
+      final Size cell = tester.getSize(
+        find.byKey(const Key('dayCell-2026-05-13')),
+      );
+      final double ratio = cell.width / cell.height;
+      // 1.05 的目标宽高比，允许 15% 误差
+      expect(ratio, closeTo(1.05, 0.15));
+      expect(ratio, greaterThan(0.85), reason: '不能又细又长（高宽比过大）：$ratio');
+    });
+  });
 }

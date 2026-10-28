@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标的背景色（和图标里的品牌蓝一致） -->
+    <color name="ic_launcher_background">#2663EB</color>
+</resources>

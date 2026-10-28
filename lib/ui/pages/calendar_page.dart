@@ -402,7 +402,7 @@ class _MonthGrid extends StatelessWidget {
   Widget _buildCell(int index, int leading, int daysInMonth) {
     final int dayNumber = index - leading + 1;
     if (dayNumber < 1 || dayNumber > daysInMonth) {
-      return const SizedBox(height: _DayCell.height);
+      return const AspectRatio(aspectRatio: _DayCell.aspect);
     }
     final DateTime day = DateTime(month.year, month.month, dayNumber);
     return _DayCell(
@@ -429,7 +429,8 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
-  static const double height = 62;
+  /// 格子的宽高比。约等于正方形（用户要求：不要又细又长的长方形）。
+  static const double aspect = 1.05;
 
   final DateTime day;
   final _DayInfo info;
@@ -438,7 +439,13 @@ class _DayCell extends StatelessWidget {
   final bool autoRotate;
   final VoidCallback onTap;
 
+  /// 用来判断两个标签是不是"同一件事"（国庆 / 国庆节 视为相同）。
+  static String _normalize(String text) => text.replaceAll('节', '');
+
   /// 这一格要展示的内容，按优先级排序：节日 -> 假期 -> 调休 -> 生日。
+  ///
+  /// 同一件事只写一次：例如 10 月 1 日既是「国庆节」又是国庆假期第一天，
+  /// 以前会同时写「国庆节」和「国庆」，看起来像在毫无意义地轮播两条。
   List<_Marker> get _markers {
     final Holiday? holiday = info.holiday;
     final bool holidayStartsToday =
@@ -446,14 +453,28 @@ class _DayCell extends StatelessWidget {
         holiday.start.year == day.year &&
         holiday.start.month == day.month &&
         holiday.start.day == day.day;
-    return <_Marker>[
-      for (final Festival festival in info.festivals)
-        _Marker(festival.name, AppColors.accent),
-      if (holiday != null)
-        _Marker(holidayStartsToday ? holiday.name : '休', AppColors.celebrate),
-      if (info.makeUpWorkday != null) const _Marker('班', AppColors.warning),
-      for (final String name in info.birthdays) _Marker(name, AppColors.brand),
-    ];
+
+    final List<_Marker> markers = <_Marker>[];
+    void add(String text, Color color) {
+      if (text.isEmpty) return;
+      final String normalized = _normalize(text);
+      final bool exists = markers.any(
+        (_Marker m) => _normalize(m.text) == normalized,
+      );
+      if (!exists) markers.add(_Marker(text, color));
+    }
+
+    for (final Festival festival in info.festivals) {
+      add(festival.name, AppColors.accent);
+    }
+    if (holiday != null) {
+      add(holidayStartsToday ? holiday.name : '休', AppColors.celebrate);
+    }
+    if (info.makeUpWorkday != null) add('班', AppColors.warning);
+    for (final String name in info.birthdays) {
+      add(name, AppColors.brand);
+    }
+    return markers;
   }
 
   @override
@@ -470,8 +491,9 @@ class _DayCell extends StatelessWidget {
               ? AppColors.warning.withValues(alpha: 0.10)
               : null);
 
-    return SizedBox(
-      height: height,
+    // 正方形（略高一点）：宽度由 Row 的 Expanded 决定，高度跟着宽度走。
+    return AspectRatio(
+      aspectRatio: aspect,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 1.5, vertical: 1.5),
         child: Material(
@@ -489,8 +511,8 @@ class _DayCell extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
                   Container(
-                    width: 28,
-                    height: 28,
+                    width: 26,
+                    height: 26,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: isToday
@@ -504,7 +526,7 @@ class _DayCell extends StatelessWidget {
                     child: Text(
                       '${day.day}',
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 13,
                         height: 1.1,
                         fontWeight: isToday || isSelected
                             ? FontWeight.w800
@@ -513,7 +535,7 @@ class _DayCell extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   _RotatingLabel(
                     // 没有内容时不给 key：测试里 `findsNothing` 才说得通
                     key: _markers.isEmpty
@@ -557,7 +579,7 @@ class _RotatingLabel extends StatefulWidget {
 }
 
 class _RotatingLabelState extends State<_RotatingLabel> {
-  static const double _height = 12;
+  static const double _height = 11;
 
   int _index = 0;
   Timer? _timer;
