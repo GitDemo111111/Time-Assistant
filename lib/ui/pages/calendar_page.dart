@@ -201,6 +201,21 @@ class _CalendarPageState extends State<CalendarPage> {
                           highlighted: i == 0,
                         ),
                       ),
+                  // 统一在这里声明一次，不再每张卡片重复
+                  if (holidays.any(
+                    (HolidayCountdown h) => !h.holiday.isOfficial,
+                  ))
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2, left: 2, right: 2),
+                      child: Text(
+                        '注：未公布年份的放假天数为估算，实际以国务院办公厅通知为准。',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -919,17 +934,6 @@ class _HolidayCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (!holiday.isOfficial) ...<Widget>[
-                  const SizedBox(height: 6),
-                  const Text(
-                    '以国务院通知为准',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.warning,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

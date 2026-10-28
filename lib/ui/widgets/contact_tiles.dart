@@ -166,6 +166,9 @@ class UpcomingTile extends StatelessWidget {
 }
 
 /// 联系人列表里的行。
+///
+/// 和首页卡片用同一套文案规则：第一行日期（农历生日会同时标出新历哪天），
+/// 第二行关系 · 星座。
 class ContactTile extends StatelessWidget {
   const ContactTile({
     super.key,
@@ -174,6 +177,7 @@ class ContactTile extends StatelessWidget {
     this.daysUntil,
     this.turningAge,
     this.constellation,
+    this.date,
   });
 
   final Contact contact;
@@ -183,6 +187,9 @@ class ContactTile extends StatelessWidget {
 
   /// 由生日自动推导的星座（农历生日需要先换算成公历，由调用方传入）。
   final String? constellation;
+
+  /// 下一次生日的公历日期（农历生日会换算出新历日期给用户看）。
+  final DateTime? date;
 
   @override
   Widget build(BuildContext context) {
@@ -227,13 +234,25 @@ class ContactTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _subtitle(relation, birthday),
+                  _dateLine(birthday),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if (_infoLine(relation, birthday).isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    _infoLine(relation, birthday),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -267,14 +286,23 @@ class ContactTile extends StatelessWidget {
     );
   }
 
-  String _subtitle(String? relation, Birthday? birthday) {
-    final List<String> parts = <String>[
+  /// 第一行：日期。农历生日同时标出今年落在新历哪一天。
+  String _dateLine(Birthday? birthday) {
+    if (birthday == null) return '还没有填写生日';
+    if (birthday.isLunar) {
+      final String base = '农历${birthday.month}月${birthday.day}日';
+      return date == null ? base : '$base · 新历${formatMonthDay(date!)}';
+    }
+    return '新历${birthday.month}月${birthday.day}日';
+  }
+
+  /// 第二行：关系 · 星座 · 爱好（有什么显示什么）。
+  String _infoLine(String? relation, Birthday? birthday) {
+    if (birthday == null) return '';
+    return <String>[
       ?relation,
-      ?birthday?.shortLabel,
       ?constellation,
       if (contact.hobbies.isNotEmpty) contact.hobbies.take(2).join('/'),
-    ];
-    if (parts.isEmpty) return '还没有填写生日';
-    return parts.join(' · ');
+    ].join(' · ');
   }
 }

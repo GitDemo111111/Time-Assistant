@@ -2,7 +2,7 @@ import 'package:birthday_keeper/models/birthday.dart';
 import 'package:birthday_keeper/models/contact.dart';
 import 'package:birthday_keeper/models/relationship.dart';
 import 'package:birthday_keeper/ui/pages/contact_detail_page.dart';
-import 'package:birthday_keeper/ui/pages/contacts_page.dart';
+import 'package:birthday_keeper/ui/pages/upcoming_page.dart';
 import 'package:birthday_keeper/ui/widgets/contact_tiles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,15 +10,15 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/test_harness.dart';
 
 void main() {
-  Future<void> pumpContacts(WidgetTester tester, TestHarness harness) async {
-    await tester.pumpWidget(harness.wrap(const ContactsPage()));
+  Future<void> pumpList(WidgetTester tester, TestHarness harness) async {
+    await tester.pumpWidget(harness.wrap(const UpcomingPage()));
     await tester.pumpAndSettle();
   }
 
   widgetTest('没有联系人时显示空状态', (WidgetTester tester) async {
     final TestHarness harness = TestHarness();
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     expect(find.text('还没有联系人'), findsOneWidget);
     // 空状态里不再放按钮，新增入口只有右下角 FAB\n    expect(find.text('添加'), findsOneWidget);
@@ -38,7 +38,7 @@ void main() {
       ],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     expect(find.byType(ContactTile), findsNWidgets(2));
     expect(find.text('张三'), findsOneWidget);
@@ -59,7 +59,7 @@ void main() {
       ],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.enterText(find.byKey(const Key('searchField')), '李');
     await tester.pumpAndSettle();
@@ -75,7 +75,7 @@ void main() {
       contacts: <Contact>[makeContact(id: 'a', name: '张三')],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.enterText(find.byKey(const Key('searchField')), '不存在');
     await tester.pumpAndSettle();
@@ -94,7 +94,7 @@ void main() {
       ],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.tap(find.byKey(const Key('relationFilter-colleague')));
     await tester.pumpAndSettle();
@@ -111,7 +111,7 @@ void main() {
       ],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.tap(find.byKey(const Key('favoriteFilterChip')));
     await tester.pumpAndSettle();
@@ -129,7 +129,7 @@ void main() {
       ],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.tap(find.byKey(const Key('hobbyFilterButton')));
     await tester.pumpAndSettle();
@@ -149,7 +149,7 @@ void main() {
       contacts: <Contact>[makeContact(id: 'a', name: '张三')],
     );
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.tap(find.byType(ContactTile));
     await tester.pumpAndSettle();
@@ -160,7 +160,7 @@ void main() {
   widgetTest('点浮动按钮进入新建页面', (WidgetTester tester) async {
     final TestHarness harness = TestHarness();
     await harness.load();
-    await pumpContacts(tester, harness);
+    await pumpList(tester, harness);
 
     await tester.tap(find.text('添加'));
     await tester.pumpAndSettle();

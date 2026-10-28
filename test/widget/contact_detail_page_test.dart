@@ -204,7 +204,7 @@ void main() {
     // 从首页进入详情，这样删除后才有页面可以返回。
     await tester.pumpWidget(harness.wrap(const UpcomingPage()));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(UpcomingTile).first);
+    await tester.tap(find.byType(ContactTile).first);
     await tester.pumpAndSettle();
     expect(find.byType(ContactDetailPage), findsOneWidget);
 

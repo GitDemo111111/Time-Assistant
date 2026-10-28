@@ -45,7 +45,7 @@ void main() {
       await harness.load();
       await pumpEditor(tester, harness);
 
-      expect(harness.rootTabController.index, RootTabController.upcomingTab);
+      expect(harness.rootTabController.index, RootTabController.calendarTab);
 
       await tester.enterText(find.byKey(const Key('nameField')), '张三');
       await tester.tap(find.byKey(const Key('saveButton')));

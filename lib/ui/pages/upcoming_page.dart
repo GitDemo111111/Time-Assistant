@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/astrology.dart';
 import '../../core/birthday_calculator.dart';
 import '../../core/formatters.dart';
 import '../../core/tips.dart';
 import '../../models/app_settings.dart';
+import '../../models/contact.dart';
 import '../../state/contact_controller.dart';
 import '../../state/settings_controller.dart';
 import '../../theme/app_theme.dart';
 import '../navigation.dart';
 import '../widgets/common.dart';
+import '../widgets/contact_filter_bar.dart';
 import '../widgets/contact_tiles.dart';
 import 'tips_page.dart';
 
-/// 「即将到来」首页。
+/// 首页：**即将到来 + 联系人合并成一个页面**。
+///
+/// 上面是概览（今天 / 7 天内 / 30 天内）和使用提示，下面是搜索、筛选和
+/// 全部联系人列表（按设置里的排序方式，默认按生日临近）。
 class UpcomingPage extends StatelessWidget {
   const UpcomingPage({super.key});
 
@@ -25,7 +31,12 @@ class UpcomingPage extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final List<UpcomingGroup> groups = controller.upcomingGroups;
+    // 生日信息按 id 建索引，列表里每一行直接取。
+    final Map<String, UpcomingBirthday> byId = <String, UpcomingBirthday>{
+      for (final UpcomingBirthday item in controller.upcoming)
+        item.contact.id: item,
+    };
+    final List<Contact> visible = controller.visibleContacts;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -39,7 +50,35 @@ class UpcomingPage extends StatelessWidget {
               _Header(controller: controller),
               _TipCard(controller: controller),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: ContactFilterBar(controller: controller),
+              ),
+              ContactFilterChips(controller: controller),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Row(
+                  children: <Widget>[
+                    Text(
+                      '共 ${visible.length} 位',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      controller.settings.sortMode.label,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
@@ -49,31 +88,29 @@ class UpcomingPage extends StatelessWidget {
                         title: '还没有联系人',
                         message:
                             '把家人朋友的生日记下来，\n生日前 3 天我会提醒你。\n\n'
-                            '点右下角「添加」开始，\n或到「联系人」页用文本一次性导入。',
+                            '点右下角「添加」开始，\n或点右上角的粘贴图标批量导入。',
                       )
-                    else if (groups.isEmpty)
-                      const EmptyState(
-                        icon: Icons.event_busy_outlined,
-                        title: '还没有人生日',
-                        message: '给联系人补上生日，就能看到倒计时了。',
+                    else if (visible.isEmpty)
+                      EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: '没有符合条件的联系人',
+                        message: '试试换个关键词或清除筛选条件。',
+                        action: controller.hasActiveFilters
+                            ? OutlinedButton(
+                                onPressed: controller.clearFilters,
+                                child: const Text('清除筛选'),
+                              )
+                            : null,
                       )
                     else
-                      for (final UpcomingGroup group in groups) ...<Widget>[
-                        SectionHeader(
-                          title: group.title,
-                          subtitle: group.subtitle,
-                        ),
-                        for (final UpcomingBirthday item in group.items)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: UpcomingTile(
-                              item: item,
-                              onTap: () =>
-                                  openContactDetail(context, item.contact.id),
-                            ),
+                      for (final Contact contact in visible)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _ContactRow(
+                            contact: contact,
+                            item: byId[contact.id],
                           ),
-                        const SizedBox(height: 12),
-                      ],
+                        ),
                   ],
                 ),
               ),
@@ -89,6 +126,29 @@ class UpcomingPage extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('添加'),
       ),
+    );
+  }
+}
+
+/// 列表里的一行：有生日就显示倒计时，没有就提示去补。
+class _ContactRow extends StatelessWidget {
+  const _ContactRow({required this.contact, required this.item});
+
+  final Contact contact;
+  final UpcomingBirthday? item;
+
+  @override
+  Widget build(BuildContext context) {
+    final UpcomingBirthday? data = item;
+    return ContactTile(
+      contact: contact,
+      daysUntil: data?.daysUntil,
+      turningAge: data?.turningAge,
+      date: data?.date,
+      constellation: data == null
+          ? null
+          : constellationOf(data.date.month, data.date.day),
+      onTap: () => openContactDetail(context, contact.id),
     );
   }
 }
@@ -264,7 +324,7 @@ class _Header extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  '共 ${controller.totalContacts} 位',
+                  '全部 ${controller.totalContacts} 位',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12.5,

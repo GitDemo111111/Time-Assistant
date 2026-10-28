@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../../state/root_tab_controller.dart';
 import 'calendar_page.dart';
-import 'contacts_page.dart';
 import 'settings_page.dart';
 import 'upcoming_page.dart';
 
 /// 底部导航外壳。
+///
+/// 三个标签（用户要求把「日历」放第一个，「即将到来」和「联系人」合并成一页）：
+/// 日历 · 联系人 · 设置。
 class RootPage extends StatefulWidget {
   const RootPage({super.key});
 
@@ -23,9 +25,8 @@ class _RootPageState extends State<RootPage> {
       body: IndexedStack(
         index: tabs.index,
         children: const <Widget>[
-          UpcomingPage(),
           CalendarPage(),
-          ContactsPage(),
+          UpcomingPage(),
           SettingsPage(),
         ],
       ),
@@ -33,11 +34,6 @@ class _RootPageState extends State<RootPage> {
         selectedIndex: tabs.index,
         onDestinationSelected: tabs.goTo,
         destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.cake_outlined),
-            selectedIcon: Icon(Icons.cake_rounded),
-            label: '即将到来',
-          ),
           NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
             selectedIcon: Icon(Icons.calendar_month_rounded),

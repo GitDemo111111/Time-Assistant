@@ -29,16 +29,17 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  widgetTest('冷启动展示「即将到来」的引导页', (WidgetTester tester) async {
+  widgetTest('冷启动落在「日历」，切到「联系人」能看到引导页', (WidgetTester tester) async {
     final TestHarness harness = TestHarness();
     await harness.load();
     await pumpApp(tester, harness);
 
-    expect(find.text('生日管家'), findsOneWidget);
-    expect(find.text('还没有联系人'), findsOneWidget);
+    // 用户要求：日历放第一个，所以冷启动先看到月历
+    expect(harness.rootTabController.index, RootTabController.calendarTab);
     expect(find.byType(NavigationBar), findsOneWidget);
-    // 四个标签都在
-    expect(find.text('即将到来'), findsOneWidget);
+    expect(find.byKey(const Key('prevMonthButton')), findsOneWidget);
+
+    // 三个标签都在（即将到来 + 联系人 已合并）
     expect(
       find.descendant(
         of: find.byType(NavigationBar),
@@ -60,6 +61,11 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    // 切到合并后的「联系人」页（即将到来 + 全部联系人）
+    await tapTab(tester, '联系人');
+    expect(find.text('生日管家'), findsOneWidget);
+    expect(find.text('还没有联系人'), findsOneWidget);
   });
 
   widgetTest('底部导航可以切换页面', (WidgetTester tester) async {
@@ -69,7 +75,7 @@ void main() {
 
     NavigationBar bar() =>
         tester.widget<NavigationBar>(find.byType(NavigationBar));
-    expect(bar().selectedIndex, 0);
+    expect(bar().selectedIndex, RootTabController.calendarTab);
 
     await tapTab(tester, '联系人');
     expect(bar().selectedIndex, RootTabController.contactsTab);
@@ -77,8 +83,8 @@ void main() {
     await tapTab(tester, '设置');
     expect(bar().selectedIndex, RootTabController.settingsTab);
 
-    await tapTab(tester, '即将到来');
-    expect(bar().selectedIndex, 0);
+    await tapTab(tester, '日历');
+    expect(bar().selectedIndex, RootTabController.calendarTab);
   });
 
   widgetTest('完整流程：新建带生日的联系人 -> 出现在首页 -> 可以编辑', (WidgetTester tester) async {
@@ -87,6 +93,7 @@ void main() {
     await pumpApp(tester, harness);
 
     // 1. 从空状态进入新建页面
+    await tapTab(tester, '联系人');
     await tester.tap(find.text('添加').first); // 右下角 FAB
     await tester.pumpAndSettle();
     expect(find.byType(ContactEditPage), findsOneWidget);
@@ -152,7 +159,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.settingsController.settings.notificationsEnabled, isFalse);
-    await tapTab(tester, '即将到来');
+    // 关掉提醒后，切回「联系人」页仍然正常显示（合并后的首页）
+    await tapTab(tester, '联系人');
     expect(find.text('生日管家'), findsOneWidget);
   });
 }

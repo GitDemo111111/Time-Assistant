@@ -153,13 +153,10 @@ void main() {
     // 第一条高亮
     expect(tester.widget<AppCard>(first).color, AppColors.brandSoft);
 
-    // 未公布年份（2027 元旦）的估算要提示「以国务院通知为准」
-    final Finder estimate = find.byKey(const Key('holidayCard-2027_new_year'));
-    expect(estimate, findsOneWidget);
-    expect(
-      find.descendant(of: estimate, matching: find.text('以国务院通知为准')),
-      findsOneWidget,
-    );
+    // 未公布年份的估算只在列表底部统一声明一次，不再每张卡片重复
+    expect(find.text('注：未公布年份的放假天数为估算，实际以国务院办公厅通知为准。'), findsOneWidget);
+    expect(find.byKey(const Key('holidayCard-2027_new_year')), findsOneWidget);
+    expect(find.text('以国务院通知为准'), findsNothing);
     // 官方数据的卡片不加这句话
     expect(
       find.descendant(of: first, matching: find.text('以国务院通知为准')),
