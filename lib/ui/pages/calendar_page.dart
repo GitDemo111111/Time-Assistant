@@ -99,6 +99,51 @@ class _CalendarPageState extends State<CalendarPage> {
     birthdays: birthdays[day.day] ?? const <String>[],
   );
 
+  /// 把假期和节日合成一条按日期排好的列表（同一天同一件事只留一条）。
+  List<_UpcomingItem> _mergedUpcoming(DateTime now, LunarConverter lunar) {
+    final List<_UpcomingItem> raw = <_UpcomingItem>[
+      for (final HolidayCountdown h in upcomingHolidays(
+        now,
+        limit: 4,
+        lunar: lunar,
+      ))
+        _UpcomingItem(date: h.holiday.start, holiday: h),
+      for (final FestivalOccurrence f in upcomingFestivals(
+        now,
+        limit: 8,
+        lunar: lunar,
+      ))
+        _UpcomingItem(date: f.date, festival: f),
+    ];
+
+    final List<_UpcomingItem> merged = <_UpcomingItem>[];
+    for (final _UpcomingItem item in raw) {
+      final int index = merged.indexWhere(
+        (_UpcomingItem other) =>
+            other.date == item.date && _sameThing(other.name, item.name),
+      );
+      if (index < 0) {
+        merged.add(item);
+        continue;
+      }
+      final _UpcomingItem old = merged[index];
+      merged[index] = _UpcomingItem(
+        date: old.date,
+        holiday: old.holiday ?? item.holiday,
+        festival: old.festival ?? item.festival,
+      );
+    }
+    merged.sort((_UpcomingItem a, _UpcomingItem b) => a.date.compareTo(b.date));
+    return merged;
+  }
+
+  /// 「国庆」和「国庆节」视为同一件事。
+  static bool _sameThing(String a, String b) {
+    final String x = a.replaceAll('节', '');
+    final String y = b.replaceAll('节', '');
+    return x == y || x.contains(y) || y.contains(x);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ContactController controller = context.watch<ContactController>();
@@ -115,16 +160,7 @@ class _CalendarPageState extends State<CalendarPage> {
       controller,
     );
 
-    final List<HolidayCountdown> holidays = upcomingHolidays(
-      controller.now,
-      limit: 4,
-      lunar: lunar,
-    );
-    final List<FestivalOccurrence> festivals = upcomingFestivals(
-      controller.now,
-      limit: 8,
-      lunar: lunar,
-    );
+    final List<_UpcomingItem> upcoming = _mergedUpcoming(controller.now, lunar);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -181,30 +217,30 @@ class _CalendarPageState extends State<CalendarPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   SectionHeader(
-                    title: '假期倒计时',
-                    subtitle: holidays.isEmpty
+                    title: '假期与节日',
+                    subtitle: upcoming.isEmpty
                         ? null
-                        : '接下来 ${holidays.length} 个假期',
+                        : '接下来 ${upcoming.length} 项 · 点一条看详情',
                   ),
-                  if (holidays.isEmpty)
+                  if (upcoming.isEmpty)
                     const EmptyState(
-                      icon: Icons.beach_access_outlined,
-                      title: '暂时没有假期',
+                      icon: Icons.event_available_outlined,
+                      title: '暂时没有安排',
                       message: '等国务院办公厅公布下一年的放假安排。',
                     )
                   else
-                    for (int i = 0; i < holidays.length; i++)
+                    for (int i = 0; i < upcoming.length; i++)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _HolidayCard(
-                          item: holidays[i],
+                        child: _UpcomingRow(
+                          item: upcoming[i],
                           highlighted: i == 0,
+                          onTap: () =>
+                              showAppSnackBar(context, upcoming[i].describe()),
                         ),
                       ),
-                  // 统一在这里声明一次，不再每张卡片重复
-                  if (holidays.any(
-                    (HolidayCountdown h) => !h.holiday.isOfficial,
-                  ))
+                  // 未公布年份的假期只声明一次
+                  if (upcoming.any((_UpcomingItem i) => i.isEstimate))
                     const Padding(
                       padding: EdgeInsets.only(top: 2, left: 2, right: 2),
                       child: Text(
@@ -213,28 +249,6 @@ class _CalendarPageState extends State<CalendarPage> {
                           fontSize: 11.5,
                           height: 1.35,
                           color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  const SectionHeader(title: '即将到来的节日', subtitle: '点一条看看有什么讲究'),
-                  for (final FestivalOccurrence occurrence in festivals)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _FestivalRow(
-                        occurrence: occurrence,
-                        onTap: () => showAppSnackBar(
-                          context,
-                          occurrence.festival.hint ??
-                              '${occurrence.festival.name} '
-                                  '${formatMonthDay(occurrence.date)}。',
                         ),
                       ),
                     ),
@@ -858,125 +872,107 @@ class _InfoLine extends StatelessWidget {
 }
 
 /// 假期倒计时卡片。
-class _HolidayCard extends StatelessWidget {
-  const _HolidayCard({required this.item, required this.highlighted});
+/// 一条「接下来」的内容：假期或节日；同一天同一件事会合并成一条。
+class _UpcomingItem {
+  const _UpcomingItem({required this.date, this.holiday, this.festival});
 
-  final HolidayCountdown item;
-  final bool highlighted;
+  final DateTime date;
+  final HolidayCountdown? holiday;
+  final FestivalOccurrence? festival;
 
-  @override
-  Widget build(BuildContext context) {
-    final Holiday holiday = item.holiday;
-    return AppCard(
-      key: Key('holidayCard-${holiday.id}'),
-      color: highlighted ? AppColors.brandSoft : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          _EmojiBadge(emoji: holiday.emoji),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Text(
-                      holiday.name,
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(
-                          AppSizes.chipRadius,
-                        ),
-                        border: Border.all(color: AppColors.outline),
-                      ),
-                      child: Text(
-                        item.countdownLabel,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brand,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: <Widget>[
-                    Text(
-                      holiday.rangeLabel,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '共 ${holiday.days} 天',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  bool get isHoliday => holiday != null;
+  bool get isFestival => festival != null;
+  bool get isEstimate => holiday != null && !holiday!.holiday.isOfficial;
+  String get name => holiday?.holiday.name ?? festival!.festival.name;
+  String get emoji => holiday?.holiday.emoji ?? festival!.festival.emoji;
+  String get countdownLabel =>
+      holiday?.countdownLabel ?? festival!.countdownLabel;
+
+  /// 点一条时弹出的说明：假期给放假区间 / 调休，节日给一句讲究。
+  ///
+  /// 同一天既是假期又是节日时（端午、中秋、国庆…），两段都给。
+  String describe() {
+    final List<String> parts = <String>[];
+    final HolidayCountdown? holidayItem = holiday;
+    if (holidayItem != null) {
+      final Holiday holiday = holidayItem.holiday;
+      final StringBuffer buffer = StringBuffer(
+        '${holiday.name}：${holiday.rangeLabel}，共 ${holiday.days} 天',
+      );
+      if (holiday.workdays.isNotEmpty) {
+        buffer.write('；调休上班 ${holiday.workdays.map(formatMonthDay).join('、')}');
+      }
+      if (!holiday.isOfficial) buffer.write('（以国务院通知为准）');
+      parts.add(buffer.toString());
+    }
+    final FestivalOccurrence? festivalItem = festival;
+    if (festivalItem != null) {
+      final Festival festival = festivalItem.festival;
+      parts.add(
+        festival.hint ??
+            '${festival.name} ${formatMonthDay(festivalItem.date)}',
+      );
+    }
+    return parts.isEmpty ? name : parts.join('\n');
   }
 }
 
-/// 「即将到来的节日」里的一行。
-class _FestivalRow extends StatelessWidget {
-  const _FestivalRow({required this.occurrence, required this.onTap});
+/// 「假期与节日」里的统一一行：假期和节日用同一种行，靠标签区分。
+class _UpcomingRow extends StatelessWidget {
+  const _UpcomingRow({
+    required this.item,
+    required this.highlighted,
+    required this.onTap,
+  });
 
-  final FestivalOccurrence occurrence;
+  final _UpcomingItem item;
+  final bool highlighted;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final Festival festival = occurrence.festival;
+    final HolidayCountdown? holiday = item.holiday;
     return AppCard(
-      key: Key('festivalRow-${festival.id}'),
+      key: Key('upcomingRow-${item.name}-${formatIsoDate(item.date)}'),
+      color: highlighted ? AppColors.brandSoft : null,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       onTap: onTap,
       child: Row(
         children: <Widget>[
-          _EmojiBadge(emoji: festival.emoji, size: 38),
+          _EmojiBadge(emoji: item.emoji, size: 40),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  festival.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (item.isHoliday)
+                      const _TagChip(text: '假期', color: AppColors.celebrate),
+                    if (item.isHoliday && item.isFestival)
+                      const SizedBox(width: 4),
+                    if (item.isFestival)
+                      const _TagChip(text: '节日', color: AppColors.accent),
+                  ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  '${formatMonthDay(occurrence.date)} · '
-                  '${weekdayLabel(occurrence.date)}',
+                  holiday != null
+                      ? '${holiday.holiday.rangeLabel} · 共 ${holiday.holiday.days} 天'
+                      : '${formatMonthDay(item.date)} · ${weekdayLabel(item.date)}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -985,8 +981,9 @@ class _FestivalRow extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
-            occurrence.countdownLabel,
+            item.countdownLabel,
             style: const TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
@@ -999,7 +996,33 @@ class _FestivalRow extends StatelessWidget {
   }
 }
 
-/// 卡片左侧的表情小方块。
+/// 小小的「假期 / 节日」标签。
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppSizes.chipRadius),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
 class _EmojiBadge extends StatelessWidget {
   const _EmojiBadge({required this.emoji, this.size = 44});
 
